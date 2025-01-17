@@ -21,5 +21,5 @@ export function useBrokerListener<
         return () => {
             broker.removeListener(eventType, l);
         };
-    }, []);
+    }, [eventType]);
 }

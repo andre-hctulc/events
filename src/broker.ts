@@ -101,7 +101,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     }
 
     /**
-     * This also unpipes and ends consumptions.
+     * Unpipe and end consumptions.
      */
     removeAllListeners() {
         this.#anyListeners.clear();
