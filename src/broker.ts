@@ -1,6 +1,16 @@
 import { BrokerEvent } from "./broker-event.js";
 
-export type BrokerInterface = Record<string, [...any] | ((...args: any) => any)>;
+/**
+ * A broker listener signature.
+ * Either a function or an array of arguments.
+ */
+export type BrokerListenerSignature = ((...args: any) => any) | [...any];
+
+/**
+ * A broker interface.
+ * Maps event types to listener signatures.
+ */
+export type BrokerInterface = Partial<Record<string, BrokerListenerSignature>>;
 
 export type BrokerEventType<E extends BrokerInterface = BrokerInterface> = string & keyof E;
 
@@ -37,7 +47,7 @@ export interface BrokerConfig {
 }
 
 /**
- * @template I Broker interface. Maps event types to listener signatures (event args or function signature).
+ * @template I Broker interface
  */
 export class Broker<I extends BrokerInterface = BrokerInterface> {
     #listeners = new Map<string, Set<Function>>();
