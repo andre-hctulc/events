@@ -1,3 +1,5 @@
+"use client";
+
 import { createContext, FC, useContext, useMemo } from "react";
 import { Broker, BrokerConfig, BrokerInterface } from "../broker.js";
 
