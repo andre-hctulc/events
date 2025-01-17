@@ -1,3 +1,5 @@
+import { BrokerEvent } from "./broker-event.js";
+
 export type BrokerInterface = Record<string, [...any] | ((...args: any) => any)>;
 
 export type BrokerEventType<E extends BrokerInterface = BrokerInterface> = string & keyof E;
@@ -26,6 +28,14 @@ export type ReadOnlyBroker<E extends BrokerInterface = BrokerInterface> = Pick<
     "listen" | "listenGlobal" | "removeListener"
 >;
 
+export interface BrokerConfig {
+    /**
+     * If true, the event type will be automatically set on the event object.
+     * @default true
+     */
+    autoEventTypes: boolean;
+}
+
 /**
  * @template I Broker interface. Maps event types to listener signatures (event args or function signature).
  */
@@ -37,8 +47,11 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     >();
     #pipe = new Set<Broker<I>>();
     #consume = new Map<Broker<I>, BrokerListener<I, BrokerEventType<I>>>();
+    #config: BrokerConfig = { autoEventTypes: true };
 
-    constructor() {}
+    constructor(config?: Partial<BrokerConfig>) {
+        this.#config = { ...this.#config, ...config };
+    }
 
     listen<T extends BrokerEventType<I>>(eventType: T, listener: BrokerListener<I, T>) {
         if (this.#listeners.has(eventType)) this.#listeners.get(eventType)?.add(listener);
@@ -67,6 +80,14 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     }
 
     dispatch<T extends BrokerEventType<I>>(eventType: T, ...args: BrokerListenerArgs<I, T>) {
+        if (this.#config.autoEventTypes) {
+            args.forEach((arg) => {
+                if (arg instanceof BrokerEvent && !arg.type) {
+                    arg._setType(eventType);
+                }
+            });
+        }
+
         // notify listeners
         const listeners = this.#listeners.get(eventType);
         listeners?.forEach((listener) => listener(...args));

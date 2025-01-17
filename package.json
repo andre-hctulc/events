@@ -1,5 +1,5 @@
 {
-    "name": "@andre-hctulc/listeners",
+    "name": "@andre-hctulc/events",
     "version": "0.0.1",
     "description": "Event listeners",
     "main": "dist/index.js",

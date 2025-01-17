@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useBroker } from "./broker-provider.js";
 import { BrokerEventType, BrokerInterface, BrokerListener } from "../broker.js";
 
@@ -9,7 +9,7 @@ export function useBrokerListener<
     const { broker } = useBroker();
     const listenerRef = useRef(listener);
 
-    React.useEffect(() => {
+    useEffect(() => {
         listenerRef.current = listener;
     }, [listener]);
 
