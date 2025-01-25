@@ -1,5 +1,4 @@
 import { BrokerEvent } from "./broker-event.js";
-
 /**
  * A broker listener signature.
  * Either a function or an array of arguments.
@@ -10,28 +9,31 @@ export type BrokerListenerSignature = ((...args: any) => any) | [...any];
  * A broker interface.
  * Maps event types to listener signatures.
  */
-export type BrokerInterface = Partial<Record<string, BrokerListenerSignature>>;
+export type BrokerInterface = Record<string, BrokerListenerSignature>;
+
+// NOTE Some interfaces or types may not conform to the broker interface, this type is used to map such interfaces to broker interfaces.
+/**
+ * Maps an interface to a string index signature suitable as broker interface.
+ */
+export type BI<I> = I extends object
+    ? { [K in string & keyof I]: I[K] extends BrokerListenerSignature ? I[K] : BrokerListenerSignature }
+    : BrokerInterface;
 
 export type BrokerEventType<E extends BrokerInterface = BrokerInterface> = string & keyof E;
 
 export type BrokerListener<
-    E extends BrokerInterface = BrokerInterface,
-    T extends BrokerEventType<E> = BrokerEventType<E>
-> = E[T] extends (...args: any) => any
-    ? E[T]
-    : E[T] extends [...any]
-    ? (...args: E[T]) => any
+    I extends BrokerInterface = BrokerInterface,
+    T extends BrokerEventType<I> = BrokerEventType<I>
+> = I[T] extends (...args: any) => any
+    ? I[T]
+    : I[T] extends [...any]
+    ? (...args: I[T]) => any
     : (...args: any) => any;
 
 export type BrokerListenerArgs<
-    E extends BrokerInterface = BrokerInterface,
-    T extends BrokerEventType<E> = BrokerEventType<E>
-> = Parameters<BrokerListener<E, T>>;
-
-export type BrokerListenerResult<
-    E extends BrokerInterface = BrokerInterface,
-    T extends BrokerEventType<E> = BrokerEventType<E>
-> = ReturnType<BrokerListener<E, T>>;
+    I extends BrokerInterface = BrokerInterface,
+    T extends BrokerEventType<I> = BrokerEventType<I>
+> = Parameters<BrokerListener<I, T>>;
 
 export type ReadOnlyBroker<E extends BrokerInterface = BrokerInterface> = Pick<
     Broker<E>,
@@ -63,25 +65,34 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         this.#config = { ...this.#config, ...config };
     }
 
-    listen<T extends BrokerEventType<I>>(eventType: T, listener: BrokerListener<I, T>) {
+    /**
+     * Listen to an event.
+     */
+    listen<T extends BrokerEventType<I>>(eventType: T, listener: BrokerListener<I, T>): BrokerListener<I, T> {
         if (this.#listeners.has(eventType)) this.#listeners.get(eventType)?.add(listener);
         else this.#listeners.set(eventType, new Set([listener]));
         return listener;
     }
 
+    /**
+     * Listen to all events.
+     */
     listenGlobal(
         listener: BrokerListener<I, BrokerEventType<I>>,
         filter?: (e: BrokerEventType<I>) => boolean
-    ) {
+    ): BrokerListener<I, BrokerEventType<I>> {
         this.#anyListeners.set(listener, { listener, filter });
         return listener;
     }
 
+    /**
+     * Removes a listener.
+     */
     removeListener<T extends BrokerEventType<I> = BrokerEventType<I>>(
         ...args:
             | [eventType: T, listener: BrokerListener<I, T>]
             | [listener: BrokerListener<I, BrokerEventType<I>>]
-    ) {
+    ): void {
         if (typeof args[0] === "function") {
             this.#anyListeners.delete(args[0]);
         } else {
@@ -89,7 +100,10 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         }
     }
 
-    dispatch<T extends BrokerEventType<I>>(eventType: T, ...args: BrokerListenerArgs<I, T>) {
+    /**
+     * Dispatches an event.
+     */
+    dispatch<T extends BrokerEventType<I>>(eventType: T, ...args: BrokerListenerArgs<I, T>): void {
         if (this.#config.autoEventTypes) {
             args.forEach((arg) => {
                 if (arg instanceof BrokerEvent && !arg.type) {
@@ -97,16 +111,17 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
                 }
             });
         }
-
-        // notify listeners
-        const listeners = this.#listeners.get(eventType);
-        listeners?.forEach((listener) => listener(...args));
-
+        
         // notify any listeners
         this.#anyListeners.forEach((anyListener) => {
             if (anyListener.filter && !anyListener.filter(eventType)) return;
             anyListener.listener(eventType, ...args);
         });
+
+        // notify listeners
+        const listeners = this.#listeners.get(eventType);
+        listeners?.forEach((listener) => listener(...args));
+
 
         // pipe
         this.#pipe.forEach((handler) => {
@@ -114,27 +129,70 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         });
     }
 
-    pipeTo(handler: Broker<I>) {
+    /**
+     * Dispatches an event and awaits all listeners.
+     */
+    async dispatchAsync<T extends BrokerEventType<I>>(
+        eventType: T,
+        ...args: BrokerListenerArgs<I, T>
+    ): Promise<void> {
+        if (this.#config.autoEventTypes) {
+            args.forEach((arg) => {
+                if (arg instanceof BrokerEvent && !arg.type) {
+                    arg._setType(eventType);
+                }
+            });
+
+        // notify any listeners
+        await Promise.all(
+            Array.from(this.#anyListeners).map(([_, anyListener]) => {
+                if (anyListener.filter && !anyListener.filter(eventType)) return;
+                return anyListener.listener(eventType, ...args);
+            })
+        );
+        }
+
+        // notify listeners
+        const listeners = this.#listeners.get(eventType);
+        await Promise.all(Array.from(listeners || []).map((listener) => listener(...args)));
+
+        // pipe
+        await Promise.all(Array.from(this.#pipe).map((handler) => handler.dispatchAsync(eventType, ...args)));
+    }
+
+    /**
+     * Pipes events to another broker.
+     */
+    pipeTo(handler: Broker<I>): void {
         this.#pipe.add(handler);
     }
 
-    unpipe(handler: Broker<I>) {
+    /**
+     * Unpipes events from another broker.
+     */
+    unpipe(handler: Broker<I>): void {
         this.#pipe.delete(handler);
     }
 
-    consume(handler: Broker<I>) {
+    /**
+     * Consumes events from another broker.
+     */
+    consume(handler: Broker<I>): void {
         const listener = handler.listenGlobal(((e: any, ...args: any) => this.dispatch(e, ...args)) as any);
         this.#consume.set(handler, listener);
     }
 
-    endConsume(handler: Broker<I>) {
+    /**
+     * Ends consumption of events from another broker.
+     */
+    endConsume(handler: Broker<I>): void {
         this.#consume.delete(handler);
     }
 
     /**
      * Unpipe and end consumptions.
      */
-    removeAllListeners() {
+    removeAllListeners(): void {
         this.#anyListeners.clear();
         this.#listeners.clear();
         this.#consume.clear();
