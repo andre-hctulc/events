@@ -103,7 +103,10 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     /**
      * Dispatches an event.
      */
-    dispatch<T extends BrokerEventType<I>>(eventType: T, ...args: BrokerListenerArgs<I, T>): void {
+    dispatch<T extends BrokerEventType<I>>(
+        eventType: T,
+        ...args: BrokerListenerArgs<I, T>
+    ): BrokerListenerArgs<I, T> {
         if (this.#config.autoEventTypes) {
             args.forEach((arg) => {
                 if (arg instanceof BrokerEvent && !arg.type) {
@@ -111,7 +114,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
                 }
             });
         }
-        
+
         // notify any listeners
         this.#anyListeners.forEach((anyListener) => {
             if (anyListener.filter && !anyListener.filter(eventType)) return;
@@ -122,11 +125,12 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         const listeners = this.#listeners.get(eventType);
         listeners?.forEach((listener) => listener(...args));
 
-
         // pipe
         this.#pipe.forEach((handler) => {
             handler.dispatch(eventType, ...args);
         });
+
+        return args;
     }
 
     /**
@@ -135,7 +139,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     async dispatchAsync<T extends BrokerEventType<I>>(
         eventType: T,
         ...args: BrokerListenerArgs<I, T>
-    ): Promise<void> {
+    ): Promise<BrokerListenerArgs<I, T>> {
         if (this.#config.autoEventTypes) {
             args.forEach((arg) => {
                 if (arg instanceof BrokerEvent && !arg.type) {
@@ -143,13 +147,13 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
                 }
             });
 
-        // notify any listeners
-        await Promise.all(
-            Array.from(this.#anyListeners).map(([_, anyListener]) => {
-                if (anyListener.filter && !anyListener.filter(eventType)) return;
-                return anyListener.listener(eventType, ...args);
-            })
-        );
+            // notify any listeners
+            await Promise.all(
+                Array.from(this.#anyListeners).map(([_, anyListener]) => {
+                    if (anyListener.filter && !anyListener.filter(eventType)) return;
+                    return anyListener.listener(eventType, ...args);
+                })
+            );
         }
 
         // notify listeners
@@ -158,6 +162,8 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
 
         // pipe
         await Promise.all(Array.from(this.#pipe).map((handler) => handler.dispatchAsync(eventType, ...args)));
+
+        return args;
     }
 
     /**
