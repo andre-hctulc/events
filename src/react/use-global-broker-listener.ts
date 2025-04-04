@@ -1,15 +1,15 @@
 import { useEffect, useRef } from "react";
 import { useBroker } from "./broker-provider.js";
-import { BrokerInterface, BrokerListener } from "../broker.js";
+import { BrokerInterface, BrokerListener, ListenerOptions } from "../broker.js";
 
 /**
  * @param brokerId Broker ID. If provided, the next broker with this ID will be returned.
  */
 export function useGlobalBrokerListener<I extends BrokerInterface = BrokerInterface>(
     listener: BrokerListener<I>,
-    brokerId?: string
+    options?: ListenerOptions & { brokerId?: string }
 ) {
-    const { broker } = useBroker(brokerId);
+    const { broker } = useBroker(options?.brokerId);
     const listenerRef = useRef(listener);
 
     useEffect(() => {
@@ -20,7 +20,7 @@ export function useGlobalBrokerListener<I extends BrokerInterface = BrokerInterf
         const l: BrokerListener = (...args: any) => {
             return listenerRef.current(...args);
         };
-        broker.listenGlobal(l);
+        broker.listenGlobal(l, options);
         return () => {
             broker.removeListener(l);
         };

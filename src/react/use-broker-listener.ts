@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useBroker } from "./broker-provider.js";
-import { BrokerEventType, BrokerInterface, BrokerListener } from "../broker.js";
+import { BrokerEventType, BrokerInterface, BrokerListener, ListenerOptions } from "../broker.js";
 
 /**
  * @param brokerId Broker ID. If provided, the next broker with this ID will be returned.
@@ -8,8 +8,8 @@ import { BrokerEventType, BrokerInterface, BrokerListener } from "../broker.js";
 export function useBrokerListener<
     I extends BrokerInterface = BrokerInterface,
     T extends BrokerEventType<I> = BrokerEventType<I>
->(eventType: T, listener: BrokerListener<I, T>, brokerId?: string) {
-    const { broker } = useBroker(brokerId);
+>(eventType: T, listener: BrokerListener<I, T>, options?: ListenerOptions & { brokerId?: string }) {
+    const { broker } = useBroker(options?.brokerId);
     const listenerRef = useRef(listener);
 
     useEffect(() => {
@@ -20,7 +20,7 @@ export function useBrokerListener<
         const l: BrokerListener = (...args: any) => {
             return listenerRef.current(...args);
         };
-        broker.listen(eventType, l);
+        broker.listen(eventType, l), options;
         return () => {
             broker.removeListener(eventType, l);
         };
