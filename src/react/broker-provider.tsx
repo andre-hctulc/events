@@ -55,6 +55,7 @@ interface BrokerProviderProps {
     config?: BrokerConfig;
     /**
      * Broker ID. If provided, the broker will be created with this ID.
+     * Use this id in {@link useBroker} to use specific brokers instead of the nearest one.
      */
     id?: string;
 }

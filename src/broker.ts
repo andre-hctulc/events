@@ -40,6 +40,13 @@ export type ReadOnlyBroker<E extends BrokerInterface = BrokerInterface> = Pick<
     "listen" | "listenGlobal" | "removeListener"
 >;
 
+export interface ListenerOptions {
+    /**
+     * @default 50
+     */
+    urgency?: number;
+}
+
 export interface BrokerConfig {
     /**
      * If true, the event type will be automatically set on the event object.
@@ -52,10 +59,14 @@ export interface BrokerConfig {
  * @template I Broker interface
  */
 export class Broker<I extends BrokerInterface = BrokerInterface> {
-    #listeners = new Map<string, Set<Function>>();
+    #listeners = new Map<string, Map<Function, { options: ListenerOptions; listener: Function }>>();
     #anyListeners = new Map<
         Function,
-        { filter: ((e: BrokerEventType<I>) => boolean) | undefined; listener: Function }
+        {
+            filter: ((e: BrokerEventType<I>) => boolean) | undefined;
+            options: ListenerOptions;
+            listener: Function;
+        }
     >();
     #pipe = new Set<Broker<I>>();
     #consume = new Map<Broker<I>, BrokerListener<I, BrokerEventType<I>>>();
@@ -68,9 +79,14 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     /**
      * Listen to an event.
      */
-    listen<T extends BrokerEventType<I>>(eventType: T, listener: BrokerListener<I, T>): BrokerListener<I, T> {
-        if (this.#listeners.has(eventType)) this.#listeners.get(eventType)?.add(listener);
-        else this.#listeners.set(eventType, new Set([listener]));
+    listen<T extends BrokerEventType<I>>(
+        eventType: T,
+        listener: BrokerListener<I, T>,
+        options: ListenerOptions = {}
+    ): BrokerListener<I, T> {
+        if (this.#listeners.has(eventType))
+            this.#listeners.get(eventType)?.set(listener, { options, listener });
+        else this.#listeners.set(eventType, new Map([[listener, { options, listener }]]));
         return listener;
     }
 
@@ -79,9 +95,9 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
      */
     listenGlobal(
         listener: BrokerListener<I, BrokerEventType<I>>,
-        filter?: (e: BrokerEventType<I>) => boolean
+        options: ListenerOptions & { filter?: (e: BrokerEventType<I>) => boolean } = {}
     ): BrokerListener<I, BrokerEventType<I>> {
-        this.#anyListeners.set(listener, { listener, filter });
+        this.#anyListeners.set(listener, { listener, filter: options.filter, options });
         return listener;
     }
 
@@ -115,17 +131,32 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
             });
         }
 
-        // notify any listeners
-        this.#anyListeners.forEach((anyListener) => {
-            if (anyListener.filter && !anyListener.filter(eventType)) return;
-            anyListener.listener(eventType, ...args);
-        });
+        // ## notify any listeners
 
-        // notify listeners
-        const listeners = this.#listeners.get(eventType);
-        listeners?.forEach((listener) => listener(...args));
+        const anyListeners = Array.from(this.#anyListeners.values());
 
-        // pipe
+        anyListeners
+            .sort(({ options: o1 }, { options: o2 }) => {
+                return (o1.urgency || 50) - (o2.urgency || 50);
+            })
+            .forEach(({ listener, filter }) => {
+                if (filter && !filter(eventType)) return;
+                listener(eventType, ...args);
+            });
+
+        // ## notify listeners
+
+        const listeners = Array.from(this.#listeners.get(eventType)?.values() || []);
+
+        listeners
+            .sort(({ options: o1 }, { options: o2 }) => {
+                return (o1.urgency || 50) - (o2.urgency || 50);
+            })
+            .forEach(({ listener }) => {
+                listener(...args);
+            });
+
+        // ## pipe
         this.#pipe.forEach((handler) => {
             handler.dispatch(eventType, ...args);
         });
@@ -146,22 +177,29 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
                     arg._setType(eventType);
                 }
             });
-
-            // notify any listeners
-            await Promise.all(
-                Array.from(this.#anyListeners).map(([_, anyListener]) => {
-                    if (anyListener.filter && !anyListener.filter(eventType)) return;
-                    return anyListener.listener(eventType, ...args);
-                })
-            );
         }
 
-        // notify listeners
-        const listeners = this.#listeners.get(eventType);
-        await Promise.all(Array.from(listeners || []).map((listener) => listener(...args)));
+        // ##notify any listeners
+        await Promise.all(
+            Array.from(this.#anyListeners).map(([_, anyListener]) => {
+                if (anyListener.filter && !anyListener.filter(eventType)) return;
+                return anyListener.listener(eventType, ...args);
+            })
+        );
 
-        // pipe
-        await Promise.all(Array.from(this.#pipe).map((handler) => handler.dispatchAsync(eventType, ...args)));
+        // ## notify listeners
+        await Promise.all(
+            Array.from(this.#listeners.get(eventType) || []).map(([, listener]) => {
+                return listener.listener(...args);
+            })
+        );
+
+        // ## pipe
+        await Promise.all(
+            Array.from(this.#pipe).map((handler) => {
+                return handler.dispatch(eventType, ...args);
+            })
+        );
 
         return args;
     }
@@ -174,7 +212,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     }
 
     /**
-     * Unpipes events from another broker.
+     * Un-pipes events from another broker.
      */
     unpipe(handler: Broker<I>): void {
         this.#pipe.delete(handler);

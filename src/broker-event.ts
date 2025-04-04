@@ -45,4 +45,11 @@ export class BrokerEvent<P = any, C = any> {
     getContributions() {
         return this.#contributions.map((c) => ({ ...c }));
     }
+
+    requirePayload() {
+        if (this.payload === undefined) {
+            throw new Error("Broker event payload is undefined but required");
+        }
+        return this.payload;
+    }
 }
