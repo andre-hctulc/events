@@ -150,7 +150,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
 
         listeners
             .sort(({ options: o1 }, { options: o2 }) => {
-                return (o1.urgency || 50) - (o2.urgency || 50);
+                return (o2.urgency || 50) - (o1.urgency || 50);
             })
             .forEach(({ listener }) => {
                 listener(...args);
