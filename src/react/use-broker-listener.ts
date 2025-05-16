@@ -20,9 +20,9 @@ export function useBrokerListener<
         const l: BrokerListener = (...args: any) => {
             return listenerRef.current(...args);
         };
-        broker.listen(eventType, l, options);
+        broker.on(eventType, l, options);
         return () => {
-            broker.removeListener(eventType, l);
+            broker.off(eventType, l);
         };
     }, [eventType]);
 }

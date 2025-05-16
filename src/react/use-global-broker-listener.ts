@@ -22,7 +22,7 @@ export function useGlobalBrokerListener<I extends BrokerInterface = BrokerInterf
         };
         broker.listenGlobal(l, options);
         return () => {
-            broker.removeListener(l);
+            broker.off(l);
         };
     }, []);
 }

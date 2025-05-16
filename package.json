@@ -1,6 +1,6 @@
 {
-    "name": "@edgeshiftlabs/events",
-    "version": "0.1.5",
+    "name": "@dre44/events",
+    "version": "0.2.0",
     "description": "Events",
     "main": "dist/index.js",
     "type": "module",

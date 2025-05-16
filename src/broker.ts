@@ -35,10 +35,7 @@ export type BrokerListenerArgs<
     T extends BrokerEventType<I> = BrokerEventType<I>
 > = Parameters<BrokerListener<I, T>>;
 
-export type ReadOnlyBroker<E extends BrokerInterface = BrokerInterface> = Pick<
-    Broker<E>,
-    "listen" | "listenGlobal" | "removeListener"
->;
+export type ReadOnlyBroker<E extends BrokerInterface = BrokerInterface> = Pick<Broker<E>, "on" | "off">;
 
 export interface ListenerOptions {
     /**
@@ -63,7 +60,6 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     #anyListeners = new Map<
         Function,
         {
-            filter: ((e: BrokerEventType<I>) => boolean) | undefined;
             options: ListenerOptions;
             listener: Function;
         }
@@ -79,40 +75,33 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     /**
      * Listen to an event.
      */
-    listen<T extends BrokerEventType<I>>(
-        eventType: T,
+    on<T extends BrokerEventType<I>>(
+        eventType: T | null,
         listener: BrokerListener<I, T>,
         options: ListenerOptions = {}
     ): BrokerListener<I, T> {
-        if (this.#listeners.has(eventType))
-            this.#listeners.get(eventType)?.set(listener, { options, listener });
-        else this.#listeners.set(eventType, new Map([[listener, { options, listener }]]));
-        return listener;
-    }
-
-    /**
-     * Listen to all events.
-     */
-    listenGlobal(
-        listener: BrokerListener<I, BrokerEventType<I>>,
-        options: ListenerOptions & { filter?: (e: BrokerEventType<I>) => boolean } = {}
-    ): BrokerListener<I, BrokerEventType<I>> {
-        this.#anyListeners.set(listener, { listener, filter: options.filter, options });
+        if (eventType === null) {
+            this.#anyListeners.set(listener, { options, listener });
+        } else {
+            if (this.#listeners.has(eventType))
+                this.#listeners.get(eventType)?.set(listener, { options, listener });
+            else this.#listeners.set(eventType, new Map([[listener, { options, listener }]]));
+        }
         return listener;
     }
 
     /**
      * Removes a listener.
+     * @param eventType The event type to remove the listener from. If null, removes it as a global listener.
      */
-    removeListener<T extends BrokerEventType<I> = BrokerEventType<I>>(
-        ...args:
-            | [eventType: T, listener: BrokerListener<I, T>]
-            | [listener: BrokerListener<I, BrokerEventType<I>>]
+    off<T extends BrokerEventType<I> = BrokerEventType<I>>(
+        eventType: T | null,
+        listener: BrokerListener<I, T>
     ): void {
-        if (typeof args[0] === "function") {
-            this.#anyListeners.delete(args[0]);
+        if (eventType === null) {
+            this.#anyListeners.delete(listener);
         } else {
-            this.#listeners.get(args[0])?.delete(args[1]!);
+            this.#listeners.get(eventType)?.delete(listener);
         }
     }
 
@@ -139,8 +128,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
             .sort(({ options: o1 }, { options: o2 }) => {
                 return (o2.urgency ?? 50) - (o1.urgency ?? 50);
             })
-            .forEach(({ listener, filter }) => {
-                if (filter && !filter(eventType)) return;
+            .forEach(({ listener }) => {
                 listener(eventType, ...args);
             });
 
@@ -182,7 +170,6 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         // ##notify any listeners
         await Promise.all(
             Array.from(this.#anyListeners).map(([_, anyListener]) => {
-                if (anyListener.filter && !anyListener.filter(eventType)) return;
                 return anyListener.listener(eventType, ...args);
             })
         );
@@ -222,7 +209,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
      * Consumes events from another broker.
      */
     consume(handler: Broker<I>): void {
-        const listener = handler.listenGlobal(((e: any, ...args: any) => this.dispatch(e, ...args)) as any);
+        const listener = handler.on(null, ((e: any, ...args: any) => this.dispatch(e, ...args)) as any);
         this.#consume.set(handler, listener);
     }
 
@@ -236,7 +223,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     /**
      * Unpipe and end consumptions.
      */
-    removeAllListeners(): void {
+    clear(): void {
         this.#anyListeners.clear();
         this.#listeners.clear();
         this.#consume.clear();
@@ -248,14 +235,11 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
      */
     readOnly(): ReadOnlyBroker<I> {
         return {
-            listenGlobal: (listener: any) => {
-                return this.listenGlobal(listener);
+            on: (eventType: any, listener: any) => {
+                return this.on(eventType, listener);
             },
-            listen: (eventType: string, listener: Function) => {
-                return this.listen(eventType as any, listener as any);
-            },
-            removeListener: (...args: any) => {
-                return (this.removeListener as any)(...args);
+            off: (eventType: any, listener: any) => {
+                return this.off(eventType, listener);
             },
         };
     }
