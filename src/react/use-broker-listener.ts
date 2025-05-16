@@ -8,7 +8,7 @@ import { BrokerEventType, BrokerInterface, BrokerListener, ListenerOptions } fro
 export function useBrokerListener<
     I extends BrokerInterface = BrokerInterface,
     T extends BrokerEventType<I> = BrokerEventType<I>
->(eventType: T, listener: BrokerListener<I, T>, options?: ListenerOptions & { brokerId?: string }) {
+>(eventType: T | null, listener: BrokerListener<I, T>, options?: ListenerOptions & { brokerId?: string }) {
     const { broker } = useBroker(options?.brokerId);
     const listenerRef = useRef(listener);
 
