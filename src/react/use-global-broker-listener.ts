@@ -20,9 +20,9 @@ export function useGlobalBrokerListener<I extends BrokerInterface = BrokerInterf
         const l: BrokerListener = (...args: any) => {
             return listenerRef.current(...args);
         };
-        broker.listenGlobal(l, options);
+        broker.on(null, l, options);
         return () => {
-            broker.off(l);
+            broker.off(null, l);
         };
     }, []);
 }
