@@ -1,4 +1,5 @@
 import { BrokerEvent } from "./broker-event.js";
+
 /**
  * A broker listener signature.
  * Either a function or an array of arguments.
@@ -42,6 +43,7 @@ export interface ListenerOptions {
      * @default 50
      */
     urgency?: number;
+    once?: boolean;
 }
 
 export interface BrokerConfig {
@@ -105,6 +107,14 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         }
     }
 
+    #sortListeners(
+        listeners: Map<Function, { options: ListenerOptions; listener: Function }> | undefined
+    ): { options: ListenerOptions; listener: Function }[] {
+        return Array.from(listeners?.values() || []).sort(({ options: o1 }, { options: o2 }) => {
+            return (o2.urgency ?? 50) - (o1.urgency ?? 50);
+        });
+    }
+
     /**
      * Dispatches an event.
      */
@@ -122,27 +132,25 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
 
         // ## notify any listeners
 
-        const anyListeners = Array.from(this.#anyListeners.values());
+        const anyListeners = this.#sortListeners(this.#anyListeners);
 
-        anyListeners
-            .sort(({ options: o1 }, { options: o2 }) => {
-                return (o2.urgency ?? 50) - (o1.urgency ?? 50);
-            })
-            .forEach(({ listener }) => {
-                listener(eventType, ...args);
-            });
+        anyListeners.forEach(({ listener, options }) => {
+            listener(eventType, ...args);
+            if (options.once) {
+                this.#anyListeners.delete(listener);
+            }
+        });
 
         // ## notify listeners
 
-        const listeners = Array.from(this.#listeners.get(eventType)?.values() || []);
+        const listeners = this.#sortListeners(this.#listeners.get(eventType));
 
-        listeners
-            .sort(({ options: o1 }, { options: o2 }) => {
-                return (o2.urgency || 50) - (o1.urgency || 50);
-            })
-            .forEach(({ listener }) => {
-                listener(...args);
-            });
+        listeners.forEach(({ listener, options }) => {
+            listener(...args);
+            if (options.once) {
+                this.#listeners.get(eventType)?.delete(listener);
+            }
+        });
 
         // ## pipe
         this.#pipe.forEach((handler) => {
@@ -153,7 +161,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     }
 
     /**
-     * Dispatches an event and awaits all listeners.
+     * Dispatches an event and awaits all listeners successively.
      */
     async dispatchAsync<T extends BrokerEventType<I>>(
         eventType: T,
@@ -168,18 +176,26 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         }
 
         // ##notify any listeners
-        await Promise.all(
-            Array.from(this.#anyListeners).map(([_, anyListener]) => {
-                return anyListener.listener(eventType, ...args);
-            })
-        );
+
+        const anyListeners = this.#sortListeners(this.#anyListeners);
+
+        for (const { listener, options } of anyListeners) {
+            if (options.once) {
+                this.#anyListeners.delete(listener);
+            }
+            await listener(eventType, ...args);
+        }
 
         // ## notify listeners
-        await Promise.all(
-            Array.from(this.#listeners.get(eventType) || []).map(([, listener]) => {
-                return listener.listener(...args);
-            })
-        );
+
+        const listeners = this.#sortListeners(this.#listeners.get(eventType));
+
+        for (const { listener, options } of listeners) {
+            if (options.once) {
+                this.#listeners.get(eventType)?.delete(listener);
+            }
+            await listener(...args);
+        }
 
         // ## pipe
         await Promise.all(
