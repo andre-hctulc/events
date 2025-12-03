@@ -6,7 +6,8 @@
     "type": "module",
     "exports": {
         ".": "./dist/index.js",
-        "./react": "./dist/react/index.js"
+        "./react": "./dist/react/index.js",
+        "./rxjs": "./dist/rxjs/index.js"
     },
     "scripts": {
         "tc": "tsc --noEmit",
@@ -25,6 +26,7 @@
         "@types/react": "^19.0.7"
     },
     "dependencies": {
-        "@dre44/events": "^0.2.2"
+        "@dre44/events": "^0.2.2",
+        "rxjs": "^7.8.2"
     }
 }

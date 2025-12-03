@@ -20,7 +20,7 @@ export type BI<I> = I extends object
     ? { [K in string & keyof I]: I[K] extends BrokerListenerSignature ? I[K] : BrokerListenerSignature }
     : BrokerInterface;
 
-export type BrokerEventType<E extends BrokerInterface = BrokerInterface> = string & keyof E;
+export type BrokerEventType<I extends BrokerInterface = BrokerInterface> = string & keyof I;
 
 export type BrokerListener<
     I extends BrokerInterface = BrokerInterface,
