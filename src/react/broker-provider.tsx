@@ -52,7 +52,7 @@ interface BrokerProviderProps {
      *
      * **This is a reactive property.** If the configuration changes, the broker will be recreated.
      */
-    config?: BrokerConfig;
+    config?: Partial<BrokerConfig>;
     /**
      * Broker ID. If provided, the broker will be created with this ID.
      * Use this id in {@link useBroker} to use specific brokers instead of the nearest one.
