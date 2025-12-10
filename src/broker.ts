@@ -31,7 +31,9 @@ export type BrokerListener<
     ? (...args: I[T]) => any
     : (...args: any) => any;
 
-export type BrokerAllListener<I extends BrokerInterface = BrokerInterface> = <T extends BrokerEventType<I>>(
+export type GlobalBrokerListener<I extends BrokerInterface = BrokerInterface> = <
+    T extends BrokerEventType<I>
+>(
     eventType: T,
     ...args: I[T] extends (...args: any) => any ? Parameters<I[T]> : I[T] extends [...any] ? I[T] : any[]
 ) => any;
@@ -80,22 +82,27 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     }
 
     /**
-     * Listen to events.
+     * Listen to all events.
      */
-    on(allListener: BrokerAllListener<I>, options?: ListenerOptions): BrokerAllListener<I>;
+    on(globalListener: GlobalBrokerListener<I>, options?: ListenerOptions): GlobalBrokerListener<I>;
+
+    /**
+     * Listen to an event.
+     */
     on<T extends BrokerEventType<I>>(
         eventType: T,
         listener: BrokerListener<I, T>,
         options?: ListenerOptions
     ): BrokerListener<I, T>;
+
     on<T extends BrokerEventType<I>>(
-        eventTypeOrListener: T | BrokerAllListener<I>,
+        eventTypeOrListener: T | GlobalBrokerListener<I>,
         listenerOrOptions?: BrokerListener<I, T> | ListenerOptions,
         options?: ListenerOptions
-    ): BrokerListener<I, T> | BrokerAllListener<I> {
+    ): BrokerListener<I, T> | GlobalBrokerListener<I> {
         // Handle the case where first parameter is a function (listening to all events)
         if (typeof eventTypeOrListener === "function") {
-            const listener = eventTypeOrListener as BrokerAllListener<I>;
+            const listener = eventTypeOrListener as GlobalBrokerListener<I>;
             const opts = (listenerOrOptions as ListenerOptions) || {};
             this.#anyListeners.set(listener, { options: opts, listener });
             return listener;
@@ -114,20 +121,25 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     }
 
     /**
-     * Removes a listener.
+     * Remove a global listener.
      */
-    off(listener: BrokerAllListener<I>): void;
+    off(globalListener: GlobalBrokerListener<I>): void;
+
+    /**
+     * Remove a listener.
+     */
     off<T extends BrokerEventType<I> = BrokerEventType<I>>(
         eventType: T,
         listener: BrokerListener<I, T>
     ): void;
+
     off<T extends BrokerEventType<I> = BrokerEventType<I>>(
-        eventTypeOrListener: T | BrokerAllListener<I>,
+        eventTypeOrListener: T | GlobalBrokerListener<I>,
         listener?: BrokerListener<I, T>
     ): void {
         // Handle the case where first parameter is a function (removing all-event listener)
         if (typeof eventTypeOrListener === "function") {
-            this.#anyListeners.delete(eventTypeOrListener as BrokerAllListener<I>);
+            this.#anyListeners.delete(eventTypeOrListener as GlobalBrokerListener<I>);
             return;
         }
 

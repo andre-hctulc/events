@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useBroker } from "./broker-provider.js";
 import {
-    BrokerAllListener,
+    GlobalBrokerListener,
     BrokerEventType,
     BrokerInterface,
     BrokerListener,
@@ -37,19 +37,19 @@ export function useBrokerListener<
  * Listen to all events from the broker.
  * @param brokerId Broker ID. If provided, the next broker with this ID will be returned.
  */
-export function useBrokerAllListener<I extends BrokerInterface = BrokerInterface>(
-    listener: BrokerAllListener<I>,
+export function useGlobalBrokerListener<I extends BrokerInterface = BrokerInterface>(
+    globalListener: GlobalBrokerListener<I>,
     options?: ListenerOptions & { brokerId?: string }
 ) {
     const { broker } = useBroker(options?.brokerId);
-    const listenerRef = useRef<(...args: any[]) => any>(listener);
+    const listenerRef = useRef<(...args: any[]) => any>(globalListener);
 
     useEffect(() => {
-        listenerRef.current = listener;
-    }, [listener]);
+        listenerRef.current = globalListener;
+    }, [globalListener]);
 
     useEffect(() => {
-        const l: BrokerAllListener = (...args) => {
+        const l: GlobalBrokerListener = (...args) => {
             return listenerRef.current(...args);
         };
         broker.on(l, options);
