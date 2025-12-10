@@ -10,7 +10,7 @@ export interface BrokerEventOptions {
  * @template C The type of the event contributions
  */
 export class BrokerEvent<P = any, C = any> {
-    constructor(readonly payload: P | undefined = undefined, options: BrokerEventOptions = {}) {
+    constructor(readonly payload: P, options: BrokerEventOptions = {}) {
         this.#type = options.type || "";
     }
 
