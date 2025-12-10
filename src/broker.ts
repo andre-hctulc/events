@@ -31,6 +31,11 @@ export type BrokerListener<
     ? (...args: I[T]) => any
     : (...args: any) => any;
 
+export type BrokerAllListener<I extends BrokerInterface = BrokerInterface> = <T extends BrokerEventType<I>>(
+    eventType: T,
+    ...args: I[T] extends (...args: any) => any ? Parameters<I[T]> : I[T] extends [...any] ? I[T] : any[]
+) => any;
+
 export type BrokerListenerArgs<
     I extends BrokerInterface = BrokerInterface,
     T extends BrokerEventType<I> = BrokerEventType<I>
@@ -75,35 +80,60 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
     }
 
     /**
-     * Listen to an event.
+     * Listen to events.
      */
+    on(allListener: BrokerAllListener<I>, options?: ListenerOptions): BrokerAllListener<I>;
     on<T extends BrokerEventType<I>>(
-        eventType: T | null,
+        eventType: T,
         listener: BrokerListener<I, T>,
-        options: ListenerOptions = {}
-    ): BrokerListener<I, T> {
-        if (eventType === null) {
-            this.#anyListeners.set(listener, { options, listener });
-        } else {
-            if (this.#listeners.has(eventType))
-                this.#listeners.get(eventType)?.set(listener, { options, listener });
-            else this.#listeners.set(eventType, new Map([[listener, { options, listener }]]));
+        options?: ListenerOptions
+    ): BrokerListener<I, T>;
+    on<T extends BrokerEventType<I>>(
+        eventTypeOrListener: T | BrokerAllListener<I>,
+        listenerOrOptions?: BrokerListener<I, T> | ListenerOptions,
+        options?: ListenerOptions
+    ): BrokerListener<I, T> | BrokerAllListener<I> {
+        // Handle the case where first parameter is a function (listening to all events)
+        if (typeof eventTypeOrListener === "function") {
+            const listener = eventTypeOrListener as BrokerAllListener<I>;
+            const opts = (listenerOrOptions as ListenerOptions) || {};
+            this.#anyListeners.set(listener, { options: opts, listener });
+            return listener;
         }
+
+        // Handle the case where first parameter is an event type (listening to specific event)
+        const eventType = eventTypeOrListener as T;
+        const listener = listenerOrOptions as BrokerListener<I, T>;
+        const opts = options || {};
+
+        if (this.#listeners.has(eventType))
+            this.#listeners.get(eventType)?.set(listener, { options: opts, listener });
+        else this.#listeners.set(eventType, new Map([[listener, { options: opts, listener }]]));
+
         return listener;
     }
 
     /**
      * Removes a listener.
-     * @param eventType The event type to remove the listener from. If null, removes it as a global listener.
      */
+    off(listener: BrokerAllListener<I>): void;
     off<T extends BrokerEventType<I> = BrokerEventType<I>>(
-        eventType: T | null,
+        eventType: T,
         listener: BrokerListener<I, T>
+    ): void;
+    off<T extends BrokerEventType<I> = BrokerEventType<I>>(
+        eventTypeOrListener: T | BrokerAllListener<I>,
+        listener?: BrokerListener<I, T>
     ): void {
-        if (eventType === null) {
-            this.#anyListeners.delete(listener);
-        } else {
-            this.#listeners.get(eventType)?.delete(listener);
+        // Handle the case where first parameter is a function (removing all-event listener)
+        if (typeof eventTypeOrListener === "function") {
+            this.#anyListeners.delete(eventTypeOrListener as BrokerAllListener<I>);
+            return;
+        }
+
+        // Handle the case where first parameter is an event type
+        if (listener) {
+            this.#listeners.get(eventTypeOrListener as T)?.delete(listener);
         }
     }
 
@@ -225,8 +255,8 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
      * Consumes events from another broker.
      */
     consume(handler: Broker<I>): void {
-        const listener = handler.on(null, ((e: any, ...args: any) => this.dispatch(e, ...args)) as any);
-        this.#consume.set(handler, listener);
+        const listener = handler.on(((e: any, ...args: any) => this.dispatch(e, ...args)) as any);
+        this.#consume.set(handler, listener as any);
     }
 
     /**
@@ -250,14 +280,20 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
      * Creates a read-only proxy of the broker.
      */
     readOnly(): ReadOnlyBroker<I> {
-        return {
-            on: (eventType: any, listener: any) => {
-                return this.on(eventType, listener);
-            },
-            off: (eventType: any, listener: any) => {
-                return this.off(eventType, listener);
-            },
-        };
+        const ro: any = {};
+        Object.defineProperty(ro, "on", {
+            value: this.on.bind(this),
+            writable: false,
+            enumerable: true,
+            configurable: false,
+        });
+        Object.defineProperty(ro, "off", {
+            value: this.off.bind(this),
+            writable: false,
+            enumerable: true,
+            configurable: false,
+        });
+        return ro;
     }
 
     has(eventType: BrokerEventType<I>, listener?: BrokerListener<I, BrokerEventType<I>>): boolean {

@@ -8,7 +8,7 @@ import { BrokerEventType, BrokerInterface, BrokerListener, ListenerOptions } fro
 export function useBrokerListener<
     I extends BrokerInterface = BrokerInterface,
     T extends BrokerEventType<I> = BrokerEventType<I>
->(eventType: T | null, listener: BrokerListener<I, T>, options?: ListenerOptions & { brokerId?: string }) {
+>(eventType: T, listener: BrokerListener<I, T>, options?: ListenerOptions & { brokerId?: string }) {
     const { broker } = useBroker(options?.brokerId);
     const listenerRef = useRef(listener);
 
@@ -25,4 +25,30 @@ export function useBrokerListener<
             broker.off(eventType, l);
         };
     }, [eventType]);
+}
+
+/**
+ * Listen to all events from the broker.
+ * @param brokerId Broker ID. If provided, the next broker with this ID will be returned.
+ */
+export function useBrokerAllListener<I extends BrokerInterface = BrokerInterface>(
+    listener: BrokerListener<I>,
+    options?: ListenerOptions & { brokerId?: string }
+) {
+    const { broker } = useBroker(options?.brokerId);
+    const listenerRef = useRef(listener);
+
+    useEffect(() => {
+        listenerRef.current = listener;
+    }, [listener]);
+
+    useEffect(() => {
+        const l: BrokerListener = (...args: any) => {
+            return listenerRef.current(...args);
+        };
+        broker.on(l, options);
+        return () => {
+            broker.off(l);
+        };
+    }, []);
 }
