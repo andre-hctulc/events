@@ -59,6 +59,12 @@ export interface BrokerConfig {
      * @default true
      */
     autoEventTypes: boolean;
+    /**
+     * If true, allows listing global listeners via `getListeners()` or `getGlobalListeners()`.
+     * An empty array is returned otherwise.
+     * @default false
+     */
+    allowListingListeners?: boolean;
 }
 
 /**
@@ -70,7 +76,7 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         Function,
         {
             options: ListenerOptions;
-            listener: Function;
+            listener: GlobalBrokerListener<I>;
         }
     >();
     #pipe = new Set<Broker<I>>();
@@ -314,5 +320,18 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         } else {
             return (this.#listeners.get(eventType)?.size ?? 0) > 0;
         }
+    }
+
+    getGlobalListeners(): GlobalBrokerListener<I>[] {
+        if (!this.#config.allowListingListeners) {
+            return [];
+        }
+        return Array.from(this.#anyListeners.values()).map(({ listener }, i) => listener);
+    }
+
+    getListeners(eventType: BrokerEventType<I>): BrokerListener<I, BrokerEventType<I>>[] {
+        return Array.from(this.#listeners.get(eventType)?.values() || []).map(
+            ({ listener }, i) => listener as any
+        );
     }
 }
