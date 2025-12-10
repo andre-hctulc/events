@@ -71,7 +71,10 @@ export interface BrokerConfig {
  * @template I Broker interface
  */
 export class Broker<I extends BrokerInterface = BrokerInterface> {
-    #listeners = new Map<string, Map<Function, { options: ListenerOptions; listener: Function }>>();
+    #listeners = new Map<
+        string,
+        Map<Function, { options: ListenerOptions; listener: BrokerListener<any, any> }>
+    >();
     #anyListeners = new Map<
         Function,
         {
@@ -314,7 +317,10 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         return ro;
     }
 
-    has(eventType: BrokerEventType<I>, listener?: BrokerListener<I, BrokerEventType<I>>): boolean {
+    /**
+     * Checks if a listener is registered for a specific event type.
+     */
+    has<T extends BrokerEventType<I>>(eventType: T, listener?: BrokerListener<I, T>): boolean {
         if (listener) {
             return this.#listeners.get(eventType)?.has(listener) ?? false;
         } else {
@@ -322,16 +328,44 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
         }
     }
 
+    /**
+     * Checks if a global listener is registered.
+     */
+    hasGlobal(listener?: GlobalBrokerListener<I>): boolean {
+        if (listener) {
+            return this.#anyListeners.has(listener);
+        } else {
+            return this.#anyListeners.size > 0;
+        }
+    }
+
+    /**
+     * List all global listeners.
+     * When `allowListingListeners` is false, an empty array is returned.
+     */
     getGlobalListeners(): GlobalBrokerListener<I>[] {
         if (!this.#config.allowListingListeners) {
             return [];
         }
-        return Array.from(this.#anyListeners.values()).map(({ listener }, i) => listener);
+        return Array.from(this.#anyListeners.values()).map(({ listener }) => listener);
     }
 
-    getListeners(eventType: BrokerEventType<I>): BrokerListener<I, BrokerEventType<I>>[] {
-        return Array.from(this.#listeners.get(eventType)?.values() || []).map(
-            ({ listener }, i) => listener as any
+    /**
+     * List all event listeners (excluding global listeners).
+     * When `allowListingListeners` is false, an empty array is returned.
+     */
+    getListeners(): [eventType: BrokerEventType<I>, BrokerListener<I, BrokerEventType<I>>][] {
+        if (!this.#config.allowListingListeners) {
+            return [];
+        }
+        return Array.from(this.#listeners.entries()).flatMap(([eventType, map]) =>
+            Array.from(map.values()).map(
+                ({ listener }) =>
+                    [eventType, listener] as [
+                        eventType: BrokerEventType<I>,
+                        BrokerListener<I, BrokerEventType<I>>
+                    ]
+            )
         );
     }
 }
