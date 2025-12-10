@@ -19,13 +19,13 @@ export function observeBrokerEvent<
     );
 }
 
-export function observeAnyBrokerEvent<B extends Broker, R = BrokerListenerArgs<InferInterface<B>>>(
+export function observeAllBrokerEvents<B extends Broker, R = BrokerListenerArgs<InferInterface<B>>>(
     broker: B,
     resultSelector?: (...args: BrokerListenerArgs<InferInterface<B>>) => R
 ): Observable<R> {
     return fromEventPattern<R>(
-        (handler) => broker.on(null, handler),
-        (handler) => broker.off(null, handler),
+        (handler) => broker.on(handler),
+        (handler) => broker.off(handler),
         resultSelector
     );
 }
