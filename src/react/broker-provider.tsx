@@ -50,7 +50,7 @@ interface BrokerProviderProps {
     /**
      * Broker configuration.
      *
-     * **This is a reactive property.** If the configuration changes, the broker will be recreated.
+     * **Must be memoized to avoid recreating the broker on each render!**
      */
     config?: Partial<BrokerConfig>;
     /**
