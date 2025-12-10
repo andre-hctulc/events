@@ -259,4 +259,12 @@ export class Broker<I extends BrokerInterface = BrokerInterface> {
             },
         };
     }
+
+    has(eventType: BrokerEventType<I>, listener?: BrokerListener<I, BrokerEventType<I>>): boolean {
+        if (listener) {
+            return this.#listeners.get(eventType)?.has(listener) ?? false;
+        } else {
+            return (this.#listeners.get(eventType)?.size ?? 0) > 0;
+        }
+    }
 }
