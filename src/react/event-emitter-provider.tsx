@@ -2,7 +2,7 @@
 
 import { createContext, FC, ReactNode, useContext, useMemo } from "react";
 import { EventMap } from "../types.js";
-import { EventEmitter, EventEmitterOptions } from "events";
+import type { EventEmitter, EventEmitterOptions } from "events";
 import { EventEmitter as Emitter } from "../resolve.js";
 
 const EventEmitterContext = createContext<EventEmitterContext | null>(null);
