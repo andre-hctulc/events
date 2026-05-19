@@ -1,29 +1,26 @@
-export interface BrokerEventOptions {
+export interface GenericEventOptions {
     /**
-     * The type of the event.
+     * Event name
      */
-    type?: string;
+    name?: string;
 }
 
 /**
  * @template P The type of the event payload
  * @template C The type of the event contributions
  */
-export class BrokerEvent<P = any, C = any> {
-    constructor(readonly payload: P, options: BrokerEventOptions = {}) {
-        this.#type = options.type || "";
+export class GenericEvent<P = any, C = any> {
+    constructor(
+        readonly payload: P,
+        options: GenericEventOptions = {},
+    ) {
+        this.#name = options.name || "";
     }
 
-    #type: string;
+    #name: string;
 
-    get type() {
-        return this.#type;
-    }
-
-    // Allows the brokers to set the type of the event dynamically
-    // IMP Therefor the user does not need to provide the type in the constructor!
-    _setType(type: string) {
-        this.#type = type;
+    get name() {
+        return this.#name;
     }
 
     #defaultPrevented = false;
@@ -48,7 +45,7 @@ export class BrokerEvent<P = any, C = any> {
 
     requirePayload() {
         if (this.payload === undefined) {
-            throw new Error("Broker event payload is undefined but required");
+            throw new Error("Event payload is undefined but required");
         }
         return this.payload;
     }

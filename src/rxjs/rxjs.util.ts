@@ -1,31 +1,15 @@
-import { Broker, BrokerEventType, BrokerListenerArgs } from "../broker.js";
+import type { EventEmitter } from "events";
 import { fromEventPattern, Observable } from "rxjs";
+import { EventArgs, EventMap, EventName } from "../types.js";
 
-type InferInterface<B extends Broker> = B extends Broker<infer I> ? I : any;
-
-export function observeBrokerEvent<
-    B extends Broker,
-    T extends BrokerEventType<InferInterface<B>>,
-    R = BrokerListenerArgs<InferInterface<B>, T>
->(
-    broker: B,
-    eventType: T,
-    resultSelector?: (...args: BrokerListenerArgs<InferInterface<B>, T>) => R
+export function observeEvent<T extends EventMap<T>, R = any>(
+    eventEmitter: EventEmitter<T>,
+    eventName: EventName<T>,
+    resultSelector?: (...args: EventArgs<T, typeof eventName>) => R,
 ): Observable<R> {
     return fromEventPattern<R>(
-        (handler) => broker.on(eventType, handler),
-        (handler) => broker.off(eventType, handler),
-        resultSelector
-    );
-}
-
-export function observeAllBrokerEvents<B extends Broker, R = BrokerListenerArgs<InferInterface<B>>>(
-    broker: B,
-    resultSelector?: (...args: BrokerListenerArgs<InferInterface<B>>) => R
-): Observable<R> {
-    return fromEventPattern<R>(
-        (handler) => broker.on(handler),
-        (handler) => broker.off(handler),
-        resultSelector
+        (handler) => eventEmitter.on(eventName, handler),
+        (handler) => eventEmitter.off(eventName, handler),
+        resultSelector,
     );
 }

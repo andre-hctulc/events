@@ -23,6 +23,7 @@
     "author": "André Thomas",
     "license": "ISC",
     "devDependencies": {
+        "@types/node": "^25.9.0",
         "@types/react": "^19.0.7"
     },
     "dependencies": {
